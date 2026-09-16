@@ -14,6 +14,9 @@ internal sealed record SigningJob(
     string ValidationUrl,
     string ApiBaseUrl)
 {
+    public bool IsLocalTest =>
+        SignerToken.StartsWith("MODELO-LOCAL-", StringComparison.OrdinalIgnoreCase);
+
     public static SigningJob Load(string path)
     {
         var job = JsonSerializer.Deserialize<SigningJob>(

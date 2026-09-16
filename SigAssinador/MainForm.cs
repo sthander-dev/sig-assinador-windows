@@ -220,6 +220,20 @@ internal sealed class MainForm : Form
         try
         {
             await PdfSigningService.SignAsync(_inputPath, dialog.FileName, _certificate, placement, _job);
+
+            if (_job.IsLocalTest)
+            {
+                _statusLabel.Text = "Documento de teste assinado localmente com sucesso.";
+                var testResult = MessageBox.Show(this,
+                    "O documento de teste foi assinado localmente com sucesso.\r\n\r\n" +
+                    "Como esta é uma autorização-modelo, o arquivo não será enviado para o registro público.\r\n\r\n" +
+                    "Deseja abrir a pasta do arquivo?",
+                    "Teste concluído", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (testResult == DialogResult.Yes)
+                    Process.Start("explorer.exe", $"/select,\"{dialog.FileName}\"");
+                return;
+            }
+
             SetBusy(true, "Assinatura concluída. Registrando o código público no SIG…");
             await SigningJobService.RegisterSignedDocumentAsync(dialog.FileName, _job, _certificate);
             _statusLabel.Text = $"Documento assinado e registrado: {_job.ValidationCode}";
