@@ -1,0 +1,40 @@
+name: Build Assinador SIG Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Obter codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restaurar dependencias
+        run: dotnet restore SigAssinador/SigAssinador.csproj
+
+      - name: Compilar executavel Windows
+        run: dotnet publish SigAssinador/SigAssinador.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publicacao
+
+      - name: Gerar pacote
+        shell: pwsh
+        run: |
+          Copy-Item README.md ./publicacao/LEIA-ME.txt
+          Compress-Archive -Path ./publicacao/* -DestinationPath ./Assinador-SIG-Windows-x64.zip
+
+      - name: Disponibilizar pacote
+        uses: actions/upload-artifact@v4
+        with:
+          name: Assinador-SIG-Windows-x64
+          path: ./Assinador-SIG-Windows-x64.zip
+          if-no-files-found: error
