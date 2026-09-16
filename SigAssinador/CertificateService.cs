@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
 
 namespace SigAssinador;
 
@@ -49,6 +50,18 @@ internal static class CertificateService
         var name = certificate.GetNameInfo(X509NameType.SimpleName, false);
         return $"{name}\r\nVálido até {certificate.NotAfter:dd/MM/yyyy} · Final {certificate.Thumbprint[^8..]}";
     }
+
+    public static string GetCnpj(X509Certificate2 certificate)
+    {
+        var source = $"{certificate.GetNameInfo(X509NameType.SimpleName, false)} {certificate.Subject}";
+        var matches = Regex.Matches(source, @"(?<!\d)\d{14}(?!\d)");
+        if (matches.Count == 0)
+            throw new InvalidOperationException("Não foi possível identificar o CNPJ no certificado selecionado.");
+        return matches[0].Value;
+    }
+
+    public static string FormatCnpj(string value) =>
+        Regex.Replace(value, @"^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$", "$1.$2.$3/$4-$5");
 
     private static void AddFromStore(X509Certificate2Collection target, StoreLocation location)
     {

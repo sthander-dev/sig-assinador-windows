@@ -7,17 +7,12 @@ namespace SigAssinador;
 
 internal static class PdfSigningService
 {
-    public static int GetPageCount(string inputPath)
-    {
-        using var document = PdfReader.Open(inputPath, PdfDocumentOpenMode.Import);
-        return document.PageCount;
-    }
-
     public static async Task SignAsync(
         string inputPath,
         string outputPath,
         X509Certificate2 certificate,
-        SignaturePlacement placement)
+        SignaturePlacement placement,
+        SigningJob job)
     {
         if (!File.Exists(inputPath))
             throw new FileNotFoundException("Documento PDF não encontrado.", inputPath);
@@ -36,7 +31,7 @@ internal static class PdfSigningService
             Reason = "Assinatura digital ICP-Brasil",
             PageIndex = pageIndex,
             Rectangle = placement.GetRectangle(document.Pages[pageIndex]),
-            AppearanceHandler = new SignatureAppearanceHandler(certificate)
+            AppearanceHandler = new SignatureAppearanceHandler(certificate, job)
         };
 
         _ = DigitalSignatureHandler.ForDocument(

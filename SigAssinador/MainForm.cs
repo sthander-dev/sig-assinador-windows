@@ -7,18 +7,21 @@ internal sealed class MainForm : Form
 {
     private readonly Label _certificateLabel = new();
     private readonly Label _documentLabel = new();
+    private readonly Label _jobLabel = new();
     private readonly Label _statusLabel = new();
     private readonly Button _selectCertificateButton = new();
     private readonly Button _selectDocumentButton = new();
+    private readonly Button _selectJobButton = new();
     private readonly Button _signButton = new();
     private X509Certificate2? _certificate;
     private string? _inputPath;
+    private SigningJob? _job;
 
     public MainForm()
     {
         Text = "Assinador SIG — ICP-Brasil A1 e A3";
-        ClientSize = new Size(720, 500);
-        MinimumSize = new Size(680, 500);
+        ClientSize = new Size(720, 610);
+        MinimumSize = new Size(680, 610);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(242, 248, 249);
         Font = new Font("Segoe UI", 10F);
@@ -51,8 +54,10 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(28, 24, 28, 24),
             ColumnCount = 1,
-            RowCount = 7
+            RowCount = 9
         };
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 75));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 75));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
@@ -61,21 +66,24 @@ internal sealed class MainForm : Form
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        body.Controls.Add(SectionTitle("1. Certificado digital"), 0, 0);
-        body.Controls.Add(Row(_certificateLabel, _selectCertificateButton, "Selecionar certificado", SelectCertificate), 0, 1);
-        body.Controls.Add(SectionTitle("2. Documento PDF"), 0, 2);
-        body.Controls.Add(Row(_documentLabel, _selectDocumentButton, "Selecionar PDF", SelectDocument), 0, 3);
+        body.Controls.Add(SectionTitle("1. Autorização do SIG"), 0, 0);
+        body.Controls.Add(Row(_jobLabel, _selectJobButton, "Abrir autorização", SelectJob), 0, 1);
+        body.Controls.Add(SectionTitle("2. Certificado digital"), 0, 2);
+        body.Controls.Add(Row(_certificateLabel, _selectCertificateButton, "Selecionar certificado", SelectCertificate), 0, 3);
+        body.Controls.Add(SectionTitle("3. Documento PDF"), 0, 4);
+        body.Controls.Add(Row(_documentLabel, _selectDocumentButton, "Selecionar PDF", SelectDocument), 0, 5);
 
+        _jobLabel.Text = "Baixe a autorização após a confirmação do pagamento no site";
         _certificateLabel.Text = "Nenhum certificado selecionado";
         _documentLabel.Text = "Nenhum documento selecionado";
-        _certificateLabel.ForeColor = _documentLabel.ForeColor = Color.FromArgb(75, 98, 104);
+        _jobLabel.ForeColor = _certificateLabel.ForeColor = _documentLabel.ForeColor = Color.FromArgb(75, 98, 104);
 
         _statusLabel.Text = "Pronto para iniciar.";
         _statusLabel.AutoSize = false;
         _statusLabel.Dock = DockStyle.Fill;
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _statusLabel.ForeColor = Color.FromArgb(75, 98, 104);
-        body.Controls.Add(_statusLabel, 0, 4);
+        body.Controls.Add(_statusLabel, 0, 6);
 
         _signButton.Text = "Assinar documento";
         _signButton.Dock = DockStyle.Fill;
@@ -86,7 +94,7 @@ internal sealed class MainForm : Form
         _signButton.FlatAppearance.BorderSize = 0;
         _signButton.Font = new Font("Segoe UI Semibold", 11F);
         _signButton.Click += async (_, _) => await SignDocumentAsync();
-        body.Controls.Add(_signButton, 0, 5);
+        body.Controls.Add(_signButton, 0, 7);
 
         body.Controls.Add(new Label
         {
@@ -95,7 +103,7 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(75, 98, 104),
             Padding = new Padding(0, 16, 0, 0)
-        }, 0, 6);
+        }, 0, 8);
 
         Controls.Add(body);
         body.BringToFront();
@@ -138,6 +146,29 @@ internal sealed class MainForm : Form
         UpdateState();
     }
 
+    private void SelectJob(object? sender, EventArgs e)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Selecione a autorização baixada do SIG",
+            Filter = "Autorização SIG (*.sigjob)|*.sigjob",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            _job = SigningJob.Load(dialog.FileName);
+            _jobLabel.Text = $"{_job.ValidationCode}\r\nPagamento confirmado · QR Code habilitado";
+            _statusLabel.Text = "Autorização carregada. Selecione o certificado e o PDF.";
+            UpdateState();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Autorização inválida", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     private void SelectDocument(object? sender, EventArgs e)
     {
         using var dialog = new OpenFileDialog
@@ -154,18 +185,18 @@ internal sealed class MainForm : Form
         UpdateState();
     }
 
-    private void UpdateState() => _signButton.Enabled = _certificate is not null && _inputPath is not null;
+    private void UpdateState() => _signButton.Enabled = _job is not null && _certificate is not null && _inputPath is not null;
 
     private async Task SignDocumentAsync()
     {
-        if (_certificate is null || _inputPath is null) return;
+        if (_job is null || _certificate is null || _inputPath is null) return;
 
         SignaturePlacement placement;
         try
         {
-            var pageCount = PdfSigningService.GetPageCount(_inputPath);
-            using var positionDialog = new PositionDialog(pageCount);
-            if (positionDialog.ShowDialog(this) != DialogResult.OK) return;
+            await SigningJobService.EnsureDocumentMatchesAsync(_inputPath, _job);
+            using var positionDialog = new PlacementEditorDialog(_inputPath);
+            if (positionDialog.ShowDialog(this) != DialogResult.OK || positionDialog.Placement is null) return;
             placement = positionDialog.Placement;
         }
         catch (Exception ex)
@@ -188,10 +219,12 @@ internal sealed class MainForm : Form
         SetBusy(true, "Assinando localmente… Se for A3, confirme o PIN na janela do driver.");
         try
         {
-            await PdfSigningService.SignAsync(_inputPath, dialog.FileName, _certificate, placement);
-            _statusLabel.Text = "Documento assinado com sucesso.";
+            await PdfSigningService.SignAsync(_inputPath, dialog.FileName, _certificate, placement, _job);
+            SetBusy(true, "Assinatura concluída. Registrando o código público no SIG…");
+            await SigningJobService.RegisterSignedDocumentAsync(dialog.FileName, _job, _certificate);
+            _statusLabel.Text = $"Documento assinado e registrado: {_job.ValidationCode}";
             var result = MessageBox.Show(this,
-                "O documento foi assinado com sucesso. Deseja abrir a pasta do arquivo?",
+                $"O documento foi assinado e registrado com sucesso.\r\n\r\nCódigo: {_job.ValidationCode}\r\n\r\nDeseja abrir a pasta do arquivo?",
                 "Assinatura concluída", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
             if (result == DialogResult.Yes)
                 Process.Start("explorer.exe", $"/select,\"{dialog.FileName}\"");
@@ -214,7 +247,8 @@ internal sealed class MainForm : Form
         UseWaitCursor = busy;
         _selectCertificateButton.Enabled = !busy;
         _selectDocumentButton.Enabled = !busy;
-        _signButton.Enabled = !busy && _certificate is not null && _inputPath is not null;
+        _selectJobButton.Enabled = !busy;
+        _signButton.Enabled = !busy && _job is not null && _certificate is not null && _inputPath is not null;
         _statusLabel.Text = status;
     }
 
