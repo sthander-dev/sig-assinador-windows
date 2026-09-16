@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -32,9 +32,30 @@ jobs:
           Copy-Item README.md ./publicacao/LEIA-ME.txt
           Compress-Archive -Path ./publicacao/* -DestinationPath ./Assinador-SIG-Windows-x64.zip
 
+      - name: Instalar gerador do instalador
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Gerar instalador do Windows
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
       - name: Disponibilizar pacote
         uses: actions/upload-artifact@v4
         with:
           name: Assinador-SIG-Windows-x64
-          path: ./Assinador-SIG-Windows-x64.zip
+          path: |
+            ./Assinador-SIG-Setup.exe
+            ./Assinador-SIG-Windows-x64.zip
           if-no-files-found: error
+
+      - name: Publicar versão oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (gh release view v1.0.0 2>$null) {
+            gh release upload v1.0.0 ./Assinador-SIG-Setup.exe ./Assinador-SIG-Windows-x64.zip --clobber
+          } else {
+            gh release create v1.0.0 ./Assinador-SIG-Setup.exe ./Assinador-SIG-Windows-x64.zip --title "Assinador SIG 1.0.0" --notes "Versão oficial para Windows 10 e 11 de 64 bits. Inclui seleção visual da posição, certificados ICP-Brasil A1/A3, QR Code e validação pública."
+          }

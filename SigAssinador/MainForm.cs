@@ -17,7 +17,7 @@ internal sealed class MainForm : Form
     private string? _inputPath;
     private SigningJob? _job;
 
-    public MainForm()
+    public MainForm(string? authorizationPath = null)
     {
         Text = "Assinador SIG — ICP-Brasil A1 e A3";
         ClientSize = new Size(720, 610);
@@ -27,6 +27,9 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10F);
 
         BuildInterface();
+
+        if (!string.IsNullOrWhiteSpace(authorizationPath))
+            Shown += (_, _) => LoadJob(authorizationPath);
     }
 
     private void BuildInterface()
@@ -156,9 +159,14 @@ internal sealed class MainForm : Form
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        LoadJob(dialog.FileName);
+    }
+
+    private void LoadJob(string path)
+    {
         try
         {
-            _job = SigningJob.Load(dialog.FileName);
+            _job = SigningJob.Load(path);
             _jobLabel.Text = $"{_job.ValidationCode}\r\nPagamento confirmado · QR Code habilitado";
             _statusLabel.Text = "Autorização carregada. Selecione o certificado e o PDF.";
             UpdateState();
