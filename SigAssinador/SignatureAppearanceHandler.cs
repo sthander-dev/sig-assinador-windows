@@ -34,15 +34,31 @@ internal sealed class SignatureAppearanceHandler : IAnnotationAppearanceHandler
         var muted = XColor.FromArgb(65, 82, 87);
         var border = XColor.FromArgb(7, 86, 101);
         var height = rectangle.Height;
-        var padding = Math.Max(5, height * 0.065);
-        var qrSize = Math.Min(height - (padding * 2), rectangle.Width * 0.27);
+        var padding = Math.Max(3.5, Math.Min(height, rectangle.Width) * 0.045);
+        var qrSize = Math.Min(height - (padding * 2), rectangle.Width * 0.30);
         var textX = padding + qrSize + Math.Max(7, rectangle.Width * 0.025);
         var textWidth = Math.Max(80, rectangle.Width - textX - padding);
-        var scale = Math.Clamp(height / 94d, 0.76, 1.35);
 
-        var regular = new XFont("Segoe UI", 6.7 * scale, XFontStyleEx.Regular);
-        var strong = new XFont("Segoe UI", 6.9 * scale, XFontStyleEx.Bold);
-        var codeFont = new XFont("Segoe UI", 7.1 * scale, XFontStyleEx.Bold);
+        var lines = new[]
+        {
+            "Documento assinado digitalmente conforme ICP-Brasil e MP 2.200-2/2001.",
+            $"Titular: {_signer}",
+            $"CNPJ: {_cnpj}",
+            $"Certificado nº de série: {_serial}",
+            $"Data: {_signedAt:dd/MM/yyyy HH:mm:ss}",
+            "Validação: sig.sthanderinfo.com.br",
+            $"Código verificador: {_validationCode}"
+        };
+
+        var measuringFont = new XFont("Segoe UI", 8.2, XFontStyleEx.Bold);
+        var widestLine = lines.Max(lineText => graphics.MeasureString(lineText, measuringFont).Width);
+        var widthScale = textWidth / Math.Max(1, widestLine);
+        var heightScale = (height - (padding * 2)) / (lines.Length * 11.5);
+        var scale = Math.Clamp(Math.Min(widthScale, heightScale), 0.48, 2.20);
+
+        var regular = new XFont("Segoe UI", 8.0 * scale, XFontStyleEx.Regular);
+        var strong = new XFont("Segoe UI", 8.2 * scale, XFontStyleEx.Bold);
+        var codeFont = new XFont("Segoe UI", 8.4 * scale, XFontStyleEx.Bold);
         var inkBrush = new XSolidBrush(ink);
         var mutedBrush = new XSolidBrush(muted);
 
@@ -53,23 +69,16 @@ internal sealed class SignatureAppearanceHandler : IAnnotationAppearanceHandler
         using (var qrImage = XImage.FromStream(stream))
             graphics.DrawImage(qrImage, padding, padding, qrSize, qrSize);
 
-        var line = 10.8 * scale;
-        var y = padding - 1;
-        DrawLine(graphics, "Documento assinado digitalmente de acordo com a", regular, inkBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, "ICP-Brasil e MP 2.200-2/2001, pelo SIG, por:", regular, inkBrush, textX, y, textWidth, line);
-        y += line + 1;
-        DrawLine(graphics, _signer, strong, inkBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, $"CNPJ: {_cnpj}", regular, inkBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, $"Certificado nº de série: {_serial}", regular, inkBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, $"Data: {_signedAt:dd/MM/yyyy HH:mm:ss}", regular, inkBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, "Validação: sig.sthanderinfo.com.br", regular, mutedBrush, textX, y, textWidth, line);
-        y += line;
-        DrawLine(graphics, $"Código verificador: {_validationCode}", codeFont, inkBrush, textX, y, textWidth, line);
+        var line = 11.5 * scale;
+        var totalTextHeight = lines.Length * line;
+        var y = Math.Max(padding, (height - totalTextHeight) / 2);
+        DrawLine(graphics, lines[0], regular, inkBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[1], strong, inkBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[2], regular, inkBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[3], regular, inkBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[4], regular, inkBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[5], regular, mutedBrush, textX, y, textWidth, line); y += line;
+        DrawLine(graphics, lines[6], codeFont, inkBrush, textX, y, textWidth, line);
     }
 
     private static void DrawLine(
