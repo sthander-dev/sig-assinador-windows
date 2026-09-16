@@ -159,6 +159,23 @@ internal sealed class MainForm : Form
     private async Task SignDocumentAsync()
     {
         if (_certificate is null || _inputPath is null) return;
+
+        SignaturePlacement placement;
+        try
+        {
+            var pageCount = PdfSigningService.GetPageCount(_inputPath);
+            using var positionDialog = new PositionDialog(pageCount);
+            if (positionDialog.ShowDialog(this) != DialogResult.OK) return;
+            placement = positionDialog.Placement;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                $"Não foi possível abrir o documento para escolher a posição.\r\n\r\n{ex.Message}",
+                "Erro ao ler PDF", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         using var dialog = new SaveFileDialog
         {
             Title = "Salvar documento assinado",
@@ -171,7 +188,7 @@ internal sealed class MainForm : Form
         SetBusy(true, "Assinando localmente… Se for A3, confirme o PIN na janela do driver.");
         try
         {
-            await PdfSigningService.SignAsync(_inputPath, dialog.FileName, _certificate);
+            await PdfSigningService.SignAsync(_inputPath, dialog.FileName, _certificate, placement);
             _statusLabel.Text = "Documento assinado com sucesso.";
             var result = MessageBox.Show(this,
                 "O documento foi assinado com sucesso. Deseja abrir a pasta do arquivo?",
