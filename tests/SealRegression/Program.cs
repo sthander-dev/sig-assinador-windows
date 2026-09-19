@@ -37,6 +37,7 @@ foreach (var rotation in new[] { 0, 90, 180, 270 })
 
     var bytes = File.ReadAllBytes(signed);
     var raw = Encoding.Latin1.GetString(bytes);
+    if (Regex.IsMatch(raw, @"/Subtype\s*/Image\b")) throw new Exception("Seal must use vector QR modules, not raster images");
     var match = Regex.Match(raw, @"/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]");
     if (!match.Success) throw new Exception("Missing ByteRange");
     var ranges = Enumerable.Range(1,4).Select(i=>int.Parse(match.Groups[i].Value)).ToArray();

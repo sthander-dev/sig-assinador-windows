@@ -11,7 +11,7 @@ internal sealed class SignatureAppearanceHandler : IAnnotationAppearanceHandler
     private readonly string _cnpj;
     private readonly string _serial;
     private readonly string _validationCode;
-    private readonly byte[] _qrPng;
+    private readonly bool[][] _qrModules;
     private readonly DateTime _signedAt = DateTime.Now;
 
     public SignatureAppearanceHandler(X509Certificate2 certificate, SigningJob job)
@@ -25,7 +25,7 @@ internal sealed class SignatureAppearanceHandler : IAnnotationAppearanceHandler
 
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(job.ValidationUrl, QRCodeGenerator.ECCLevel.Q);
-        _qrPng = new PngByteQRCode(data).GetGraphic(8, new byte[] { 0, 0, 0 }, new byte[] { 255, 255, 255 });
+        _qrModules = data.ModuleMatrix.Select(row => row.Cast<bool>().ToArray()).ToArray();
     }
 
     public void DrawAppearance(XGraphics graphics, XRect rectangle)
@@ -65,9 +65,22 @@ internal sealed class SignatureAppearanceHandler : IAnnotationAppearanceHandler
         graphics.DrawRectangle(XBrushes.White, 0, 0, rectangle.Width, rectangle.Height);
         graphics.DrawRectangle(new XPen(border, 0.9), 0.45, 0.45, rectangle.Width - 0.9, rectangle.Height - 0.9);
 
-        using (var stream = new MemoryStream(_qrPng, writable: false))
-        using (var qrImage = XImage.FromStream(stream))
-            graphics.DrawImage(qrImage, padding, padding, qrSize, qrSize);
+        // Draw QR modules as PDF paths, avoiding monochrome image decoding
+        // differences in mobile viewers. ModuleMatrix includes the quiet zone.
+        var moduleSize = qrSize / _qrModules.Length;
+        for (var row = 0; row < _qrModules.Length; row++)
+        {
+            for (var column = 0; column < _qrModules[row].Length; column++)
+            {
+                if (!_qrModules[row][column]) continue;
+                var start = column;
+                while (column + 1 < _qrModules[row].Length && _qrModules[row][column + 1])
+                    column++;
+                graphics.DrawRectangle(XBrushes.Black,
+                    padding + start * moduleSize, padding + row * moduleSize,
+                    (column - start + 1) * moduleSize, moduleSize);
+            }
+        }
 
         var line = 11.5 * scale;
         var totalTextHeight = lines.Length * line;
