@@ -23,6 +23,9 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore SigAssinador/SigAssinador.csproj
 
+      - name: Verificar integridade da assinatura e preservacao do original
+        run: dotnet run --project tests/SealRegression/SealRegression.csproj -c Release -- ./seal-regression-output
+
       - name: Compilar executavel Windows
         run: dotnet publish SigAssinador/SigAssinador.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publicacao
 
