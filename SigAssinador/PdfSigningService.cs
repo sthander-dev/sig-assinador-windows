@@ -34,8 +34,19 @@ internal static class PdfSigningService
         // XGraphics uses a top-left origin; the signature rectangle uses PDF coordinates.
         using (var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append))
         {
-            graphics.TranslateTransform(rectangle.X, page.Height.Point - rectangle.Y - rectangle.Height);
-            appearance.DrawAppearance(graphics, new XRect(0, 0, rectangle.Width, rectangle.Height));
+            var top = page.Height.Point - rectangle.Y - rectangle.Height;
+            if (rectangle.Height > rectangle.Width)
+            {
+                // Rotate a horizontal seal into a vertical selection.
+                graphics.TranslateTransform(rectangle.X + rectangle.Width, top);
+                graphics.RotateTransform(90);
+                appearance.DrawAppearance(graphics, new XRect(0, 0, rectangle.Height, rectangle.Width));
+            }
+            else
+            {
+                graphics.TranslateTransform(rectangle.X, top);
+                appearance.DrawAppearance(graphics, new XRect(0, 0, rectangle.Width, rectangle.Height));
+            }
         }
 
         var options = new DigitalSignatureOptions

@@ -19,6 +19,7 @@ foreach (var rotation in new[] { 0, 90, 180, 270 })
 {
     var source = Path.Combine(output, $"source-{rotation}.pdf");
     var signed = Path.Combine(output, $"signed-{rotation}.pdf");
+    var signedVertical = Path.Combine(output, $"signed-vertical-{rotation}.pdf");
     using (var document = new PdfDocument())
     {
         for (int n = 0; n < 2; n++)
@@ -32,10 +33,35 @@ foreach (var rotation in new[] { 0, 90, 180, 270 })
         document.Save(source);
     }
     var originalHash = SHA256.HashData(File.ReadAllBytes(source));
-    await PdfSigningService.SignAsync(source, signed, cert, new SignaturePlacement(2, .10, .60, .80, .17), job);
+    var placement = new SignaturePlacement(2, .10, .60, .80, .17);
+    using (var positionDocument = PdfSharp.Pdf.IO.PdfReader.Open(source, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+    {
+        var actual = placement.GetRectangle(positionDocument.Pages[1]);
+        var expected = rotation switch
+        {
+            90 => new XRect(.60 * 595, .10 * 842, .17 * 595, .80 * 842),
+            180 => new XRect(.10 * 595, .60 * 842, .80 * 595, .17 * 842),
+            270 => new XRect(.23 * 595, .10 * 842, .17 * 595, .80 * 842),
+            _ => new XRect(.10 * 595, .23 * 842, .80 * 595, .17 * 842)
+        };
+        AssertNear(actual.X, expected.X, rotation, "X");
+        AssertNear(actual.Y, expected.Y, rotation, "Y");
+        AssertNear(actual.Width, expected.Width, rotation, "Width");
+        AssertNear(actual.Height, expected.Height, rotation, "Height");
+    }
+    await PdfSigningService.SignAsync(source, signed, cert, placement, job);
+    await PdfSigningService.SignAsync(source, signedVertical, cert,
+        new SignaturePlacement(2, .84, .12, .10, .70), job);
     if (!originalHash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(source)))) throw new Exception("Original modified");
 
-    var bytes = File.ReadAllBytes(signed);
+    ValidateSignature(signed);
+    ValidateSignature(signedVertical);
+    Console.WriteLine($"PASS rotation={rotation}: horizontal and vertical seals, CMS integrity, original preserved");
+}
+
+static void ValidateSignature(string path)
+{
+    var bytes = File.ReadAllBytes(path);
     var raw = Encoding.Latin1.GetString(bytes);
     if (Regex.IsMatch(raw, @"/Subtype\s*/Image\b")) throw new Exception("Seal must use vector QR modules, not raster images");
     var match = Regex.Match(raw, @"/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]");
@@ -47,5 +73,10 @@ foreach (var rotation in new[] { 0, 90, 180, 270 })
     var cms = new SignedCms(new ContentInfo(payload), detached:true);
     cms.Decode(Convert.FromHexString(hex));
     cms.CheckSignature(verifySignatureOnly:true);
-    Console.WriteLine($"PASS rotation={rotation}: signed byte ranges, CMS integrity, original preserved");
+}
+
+static void AssertNear(double actual, double expected, int rotation, string field)
+{
+    if (Math.Abs(actual - expected) > 0.01)
+        throw new Exception($"Rotation {rotation}: {field} expected {expected}, got {actual}");
 }

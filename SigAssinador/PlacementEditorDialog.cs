@@ -42,7 +42,7 @@ internal sealed class PlacementEditorDialog : Form
         });
         header.Controls.Add(new Label
         {
-            Text = "Clique e arraste sobre o documento. Você pode refazer o retângulo quantas vezes desejar.",
+            Text = "Clique e arraste sobre o documento. A assinatura pode ficar na horizontal ou girada 90°.",
             ForeColor = Color.FromArgb(205, 231, 235),
             AutoSize = true,
             Location = new Point(27, 45)
@@ -257,13 +257,21 @@ internal sealed class SelectionCanvas : Control
         _drawing = false;
         Capture = false;
         var rectangle = Normalize(_start, Clamp(e.Location));
-        _selection = rectangle.Width >= 330 && rectangle.Height >= 110 ? rectangle : null;
+        var longSide = Math.Max(rectangle.Width, rectangle.Height);
+        var shortSide = Math.Min(rectangle.Width, rectangle.Height);
+        var minimumLongSide = Math.Max(180, (int)Math.Round(Math.Max(Width, Height) * 0.22));
+        var minimumShortSide = Math.Max(60, (int)Math.Round(Math.Min(Width, Height) * 0.08));
+        _selection = longSide >= minimumLongSide &&
+                     shortSide >= minimumShortSide &&
+                     longSide >= shortSide * 1.8
+            ? rectangle
+            : null;
         Invalidate();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
 
         if (_selection is null)
             MessageBox.Show(this,
-                "Desenhe um retângulo maior (formato horizontal) para que o QR Code e os dados da assinatura fiquem legíveis.",
+                "Desenhe um retângulo maior e alongado, na horizontal ou na vertical, para que o QR Code e os dados fiquem legíveis.",
                 "Área muito pequena", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 

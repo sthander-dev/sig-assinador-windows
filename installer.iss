@@ -1,5 +1,5 @@
 #define MyAppName "Assinador SIG"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "Sthander Info"
 #define MyAppURL "https://sig.sthanderinfo.com.br"
 #define MyAppExeName "AssinadorSIG.exe"
