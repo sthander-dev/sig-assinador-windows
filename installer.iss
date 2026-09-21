@@ -1,5 +1,5 @@
 #define MyAppName "Assinador SIG"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Sthander Info"
 #define MyAppURL "https://sig.sthanderinfo.com.br"
 #define MyAppExeName "AssinadorSIG.exe"
@@ -42,3 +42,4 @@ Root: HKA; Subkey: "Software\Classes\SIG.SigningJob\shell\open\command"; ValueTy
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Abrir o Assinador SIG"; Flags: nowait postinstall skipifsilent
+

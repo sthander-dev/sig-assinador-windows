@@ -59,6 +59,34 @@ foreach (var rotation in new[] { 0, 90, 180, 270 })
     Console.WriteLine($"PASS rotation={rotation}: horizontal and vertical seals, CMS integrity, original preserved");
 }
 
+using (var uploadForm = await SigningJobService.CreateUploadFormAsync(
+    Path.Combine(output, "signed-0.pdf"), job, cert))
+{
+    var boundary = uploadForm.Headers.ContentType?.Parameters
+        .FirstOrDefault(parameter => parameter.Name == "boundary")?.Value ?? "";
+    if (boundary.StartsWith('"') || boundary.EndsWith('"'))
+        throw new Exception("Upload boundary must not be quoted");
+
+    var uploadBytes = await uploadForm.ReadAsByteArrayAsync();
+    var uploadText = Encoding.Latin1.GetString(uploadBytes);
+    foreach (var field in new[]
+    {
+        "paymentId", "validationCode", "signerName", "signerCnpj",
+        "certificateSerial", "certificateThumbprint", "file"
+    })
+    {
+        if (!Regex.IsMatch(uploadText, $@"name=\""?{field}\""?"))
+            throw new Exception($"Upload field missing: {field}");
+    }
+    var paymentIndex = uploadText.IndexOf(job.PaymentId, StringComparison.Ordinal);
+    var pdfIndex = uploadText.IndexOf("%PDF-", StringComparison.Ordinal);
+    if (paymentIndex < 0 || pdfIndex < 0 || paymentIndex > pdfIndex)
+        throw new Exception("Upload metadata must be serialized before the PDF");
+    if (!Regex.IsMatch(uploadText, @"filename=\""?documento-assinado\.pdf\""?"))
+        throw new Exception("Upload filename must be stable and ASCII-only");
+    Console.WriteLine("PASS upload: compatible boundary, complete metadata and buffered PDF");
+}
+
 static void ValidateSignature(string path)
 {
     var bytes = File.ReadAllBytes(path);
@@ -80,3 +108,4 @@ static void AssertNear(double actual, double expected, int rotation, string fiel
     if (Math.Abs(actual - expected) > 0.01)
         throw new Exception($"Rotation {rotation}: {field} expected {expected}, got {actual}");
 }
+
